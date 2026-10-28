@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">YT Player</string>
+    <string name="hint_url">貼上 YouTube 網址</string>
+    <string name="btn_play">播放</string>
+    <string name="toast_empty_url">請輸入 YouTube 網址</string>
+    <string name="toast_unresolved_url">無法辨識網址</string>
+    <string name="toast_no_stream">找不到可播放的串流</string>
+    <string name="toast_extract_failed">解析失敗：%1$s</string>
+    <string name="hint_search">搜尋 YouTube 影片</string>
+    <string name="btn_search">搜尋</string>
+    <string name="title_search_result">搜尋結果</string>
+    <string name="toast_load_failed">載入失敗：%1$s</string>
+    <string name="toast_empty_search">請輸入搜尋關鍵字</string>
+    <string name="title_favorites">收藏</string>
+    <string name="title_continue_watching">繼續觀看</string>
+    <string name="menu_favorites">收藏</string>
+    <string name="menu_continue_watching">繼續觀看</string>
+    <string name="menu_add_favorite">加入收藏</string>
+    <string name="menu_remove_favorite">移除收藏</string>
+    <string name="toast_favorite_added">已加入收藏</string>
+    <string name="toast_favorite_removed">已移除收藏</string>
+</resources>

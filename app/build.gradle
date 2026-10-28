@@ -1,0 +1,65 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.example.ytplayer'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.example.ytplayer"
+        minSdk 21
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+        coreLibraryDesugaringEnabled true
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+}
+
+dependencies {
+    // nio 版才會補 URLDecoder.decode(String, Charset) 這種 API 33 才有的多載，
+    // NewPipeExtractor 內部有用到，沒有這個在 Android 5.x 上會直接 NoSuchMethodError
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.0.4'
+
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+
+    // NewPipeExtractor：解析 YouTube 串流網址，不走官方 API
+    implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.26.5'
+
+    // Media3 ExoPlayer：鎖在 1.8.1，這是最後一個 minSdk 21 的版本（1.9 起要求 23）
+    implementation 'androidx.media3:media3-exoplayer:1.8.1'
+    implementation 'androidx.media3:media3-ui:1.8.1'
+
+    // 供 NewPipeExtractor 的 Downloader 實作使用
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    // 首頁影片清單
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    implementation 'com.github.bumptech.glide:glide:4.16.0'
+
+    testImplementation 'junit:junit:4.13.2'
+}
