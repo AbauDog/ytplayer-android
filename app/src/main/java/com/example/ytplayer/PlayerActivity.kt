@@ -1,5 +1,6 @@
 package com.example.ytplayer
 
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -10,16 +11,25 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
+import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.stream.StreamInfo
 
@@ -33,7 +43,11 @@ class PlayerActivity : AppCompatActivity() {
         private const val RESUME_END_GUARD_MS = 5000L
     }
 
-    private var player: ExoPlayer? = null
+    // 實際的 ExoPlayer 在 PlaybackService 裡，這裡透過 MediaController 操作
+    private lateinit var controllerFuture: ListenableFuture<MediaController>
+    private var controller: MediaController? = null
+    // 目前影片已載入後才指向 controller，載入中為 null，避免把舊進度存到新網址
+    private var player: Player? = null
     private var loadJob: Job? = null
     private var progressSaveJob: Job? = null
     private lateinit var progressBar: ProgressBar
@@ -63,13 +77,34 @@ class PlayerActivity : AppCompatActivity() {
         favoriteButton.isEnabled = false
         favoriteButton.setOnClickListener { toggleFavorite() }
 
+        val sessionToken = SessionToken(this, ComponentName(this, PlaybackService::class.java))
+        controllerFuture = MediaController.Builder(this, sessionToken).buildAsync()
+
         playFromIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // 從通知列點回來的 Intent 不帶網址，維持目前播放即可
+        if (resolveIncomingUrl(intent) == null) return
         setIntent(intent)
         playFromIntent(intent)
+    }
+
+    private suspend fun awaitController(): MediaController {
+        controller?.let { return it }
+        return suspendCancellableCoroutine { cont ->
+            controllerFuture.addListener({
+                try {
+                    val c = controllerFuture.get()
+                    controller = c
+                    playerView.player = c
+                    cont.resume(c)
+                } catch (e: Exception) {
+                    cont.resumeWithException(e)
+                }
+            }, ContextCompat.getMainExecutor(this))
+        }
     }
 
     private fun playFromIntent(intent: Intent) {
@@ -86,7 +121,7 @@ class PlayerActivity : AppCompatActivity() {
         saveProgressNow()
         progressSaveJob?.cancel()
         loadJob?.cancel()
-        player?.release()
+        player?.stop()
         player = null
 
         videoUrl = url
@@ -121,11 +156,13 @@ class PlayerActivity : AppCompatActivity() {
                     repository.getWatchProgress(url)?.positionMs
                 }
 
-                startPlayback(streamUrl, resumePositionMs)
+                startPlayback(awaitController(), streamUrl, resumePositionMs)
                 progressBar.visibility = View.GONE
 
                 refreshFavoriteState()
                 startProgressSaveLoop()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "extract failed for $url", e)
                 Toast.makeText(
@@ -154,22 +191,32 @@ class PlayerActivity : AppCompatActivity() {
         return info.audioStreams?.firstOrNull { !it.content.isNullOrEmpty() }?.content
     }
 
-    private fun startPlayback(streamUrl: String, resumePositionMs: Long?) {
-        val exoPlayer = ExoPlayer.Builder(this).build()
-        playerView.player = exoPlayer
-        exoPlayer.setMediaItem(MediaItem.fromUri(streamUrl))
-        exoPlayer.prepare()
+    private fun startPlayback(controller: MediaController, streamUrl: String, resumePositionMs: Long?) {
+        val streamUri = Uri.parse(streamUrl)
+        val mediaItem = MediaItem.Builder()
+            .setMediaId(videoUrl)
+            .setUri(streamUri)
+            // 跨行程傳遞時 URI 可能被拿掉，PlaybackService 會從這裡補回
+            .setRequestMetadata(MediaItem.RequestMetadata.Builder().setMediaUri(streamUri).build())
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(videoTitle)
+                    .setArtist(videoUploader)
+                    .setArtworkUri(videoThumbnailUrl?.let { Uri.parse(it) })
+                    .build()
+            )
+            .build()
 
         val durationMs = videoDurationSec * 1000
-        if (resumePositionMs != null &&
+        val startPositionMs = if (resumePositionMs != null &&
             resumePositionMs > RESUME_MIN_POSITION_MS &&
             (durationMs <= 0 || resumePositionMs < durationMs - RESUME_END_GUARD_MS)
-        ) {
-            exoPlayer.seekTo(resumePositionMs)
-        }
+        ) resumePositionMs else 0L
 
-        exoPlayer.playWhenReady = true
-        player = exoPlayer
+        controller.setMediaItem(mediaItem, startPositionMs)
+        controller.prepare()
+        controller.playWhenReady = true
+        player = controller
     }
 
     private fun startProgressSaveLoop() {
@@ -232,10 +279,24 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        // 關螢幕或切到其他 App 都讓 PlaybackService 在背景繼續播
         saveProgressNow()
+    }
+
+    override fun onDestroy() {
         progressSaveJob?.cancel()
         loadJob?.cancel()
-        player?.release()
+        playerView.player = null
+        if (isFinishing) {
+            controller?.stop()
+            controller?.clearMediaItems()
+        }
         player = null
+        controller = null
+        MediaController.releaseFuture(controllerFuture)
+        if (isFinishing) {
+            stopService(Intent(this, PlaybackService::class.java))
+        }
+        super.onDestroy()
     }
 }

@@ -50,6 +50,8 @@ dependencies {
     // Media3 ExoPlayer：鎖在 1.8.1，這是最後一個 minSdk 21 的版本（1.9 起要求 23）
     implementation 'androidx.media3:media3-exoplayer:1.8.1'
     implementation 'androidx.media3:media3-ui:1.8.1'
+    // 背景播放：MediaSessionService + 通知列控制
+    implementation 'androidx.media3:media3-session:1.8.1'
 
     // 供 NewPipeExtractor 的 Downloader 實作使用
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
