@@ -61,13 +61,13 @@ class PlaybackService : MediaSessionService() {
             override fun isCommandAvailable(command: Int): Boolean =
                 command in remappedCommands || super.isCommandAvailable(command)
 
-            // 耳機「上一首」= 音量調大
-            override fun seekToPrevious() = raiseVolume()
-            override fun seekToPreviousMediaItem() = raiseVolume()
+            // 耳機「上一首」= 音量調小
+            override fun seekToPrevious() = lowerVolume()
+            override fun seekToPreviousMediaItem() = lowerVolume()
 
-            // 耳機「下一首」= 音量調小
-            override fun seekToNext() = lowerVolume()
-            override fun seekToNextMediaItem() = lowerVolume()
+            // 耳機「下一首」= 音量調大
+            override fun seekToNext() = raiseVolume()
+            override fun seekToNextMediaItem() = raiseVolume()
 
             private fun raiseVolume() {
                 audioManager.adjustStreamVolume(
