@@ -106,6 +106,10 @@ class PlayerRepository(context: Context) {
         )
     }
 
+    fun deleteWatchHistory(url: String) {
+        dbHelper.writableDatabase.delete("watch_history", "url = ?", arrayOf(url))
+    }
+
     fun listWatchHistory(limit: Int = 100): List<WatchHistoryEntry> {
         val result = mutableListOf<WatchHistoryEntry>()
         dbHelper.readableDatabase.rawQuery(

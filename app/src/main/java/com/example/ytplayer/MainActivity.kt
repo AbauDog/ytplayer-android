@@ -50,7 +50,10 @@ class MainActivity : AppCompatActivity() {
         swipeRefresh = findViewById(R.id.swipeRefresh)
         listTitle = findViewById(R.id.listTitle)
 
-        adapter = VideoListAdapter { item -> openPlayer(item) }
+        adapter = VideoListAdapter(
+            onClick = { item -> openPlayer(item) },
+            onDelete = { item -> deleteCurrentModeItem(item) }
+        )
         videoList.layoutManager = LinearLayoutManager(this)
         videoList.adapter = adapter
 
@@ -117,7 +120,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val results = YoutubeRepository.search(query)
-                adapter.submitList(results.map { it.toCardData() })
+                adapter.submitList(results.map { it.toCardData() }, showDelete = false)
             } catch (e: Exception) {
                 Toast.makeText(
                     this@MainActivity,
@@ -136,7 +139,7 @@ class MainActivity : AppCompatActivity() {
         showLoading(true)
         lifecycleScope.launch {
             val results = withContext(Dispatchers.IO) { repository.listFavorites() }
-            adapter.submitList(results.map { it.toCardData() })
+            adapter.submitList(results.map { it.toCardData() }, showDelete = true)
             showLoading(false)
         }
     }
@@ -147,8 +150,22 @@ class MainActivity : AppCompatActivity() {
         showLoading(true)
         lifecycleScope.launch {
             val results = withContext(Dispatchers.IO) { repository.listWatchHistory() }
-            adapter.submitList(results.map { it.toCardData() })
+            adapter.submitList(results.map { it.toCardData() }, showDelete = true)
             showLoading(false)
+        }
+    }
+
+    private fun deleteCurrentModeItem(item: VideoCardData) {
+        when (currentMode) {
+            ListMode.FAVORITES -> lifecycleScope.launch {
+                withContext(Dispatchers.IO) { repository.removeFavorite(item.url) }
+                loadFavorites()
+            }
+            ListMode.CONTINUE_WATCHING -> lifecycleScope.launch {
+                withContext(Dispatchers.IO) { repository.deleteWatchHistory(item.url) }
+                loadContinueWatching()
+            }
+            ListMode.SEARCH -> Unit
         }
     }
 

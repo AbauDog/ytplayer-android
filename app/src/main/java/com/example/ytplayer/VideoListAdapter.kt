@@ -2,6 +2,7 @@ package com.example.ytplayer
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -9,14 +10,18 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 
 class VideoListAdapter(
-    private val onClick: (VideoCardData) -> Unit
+    private val onClick: (VideoCardData) -> Unit,
+    /** 非 null 時才顯示刪除按鈕，用於收藏／繼續觀看清單；搜尋結果不需要刪除 */
+    private val onDelete: ((VideoCardData) -> Unit)? = null
 ) : RecyclerView.Adapter<VideoListAdapter.VideoViewHolder>() {
 
     private val items = mutableListOf<VideoCardData>()
+    private var showDelete = false
 
-    fun submitList(newItems: List<VideoCardData>) {
+    fun submitList(newItems: List<VideoCardData>, showDelete: Boolean = false) {
         items.clear()
         items.addAll(newItems)
+        this.showDelete = showDelete
         notifyDataSetChanged()
     }
 
@@ -26,7 +31,7 @@ class VideoListAdapter(
     }
 
     override fun onBindViewHolder(holder: VideoViewHolder, position: Int) {
-        holder.bind(items[position], onClick)
+        holder.bind(items[position], onClick, if (showDelete) onDelete else null)
     }
 
     override fun getItemCount(): Int = items.size
@@ -37,8 +42,9 @@ class VideoListAdapter(
         private val title = itemView.findViewById<TextView>(R.id.title)
         private val uploader = itemView.findViewById<TextView>(R.id.uploader)
         private val watchProgress = itemView.findViewById<ProgressBar>(R.id.watchProgress)
+        private val deleteButton = itemView.findViewById<ImageButton>(R.id.deleteButton)
 
-        fun bind(item: VideoCardData, onClick: (VideoCardData) -> Unit) {
+        fun bind(item: VideoCardData, onClick: (VideoCardData) -> Unit, onDelete: ((VideoCardData) -> Unit)?) {
             title.text = item.title
             uploader.text = item.uploader.orEmpty()
             duration.text = if (item.durationSec > 0) formatDuration(item.durationSec) else ""
@@ -53,6 +59,14 @@ class VideoListAdapter(
                 watchProgress.progress = (item.watchedFraction * 1000).toInt().coerceIn(0, 1000)
             } else {
                 watchProgress.visibility = android.view.View.GONE
+            }
+
+            if (onDelete != null) {
+                deleteButton.visibility = android.view.View.VISIBLE
+                deleteButton.setOnClickListener { onDelete(item) }
+            } else {
+                deleteButton.visibility = android.view.View.GONE
+                deleteButton.setOnClickListener(null)
             }
 
             itemView.setOnClickListener { onClick(item) }
